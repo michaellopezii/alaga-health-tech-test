@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "master_seed": 20260816,
+  "case_count": 600,
+  "variant_count": 41,
+  "corpus_sha256": "32635d2a7043681c27d954bc974837e0ce020cf674141bfe2b30f32e8bf48777",
+  "ground_truth_provenance": "authored_by_construction: every expected_escalation was written into its Blueprint at design time. No rules engine was run over these panels to produce a label.",
+  "counts_by_stratum": {
+    "s10_adversarial_injection": 18,
+    "s1_fully_normal": 240,
+    "s2_normal_with_incidental_flag": 150,
+    "s3_true_critical": 30,
+    "s4_preanalytic_pseudocritical": 24,
+    "s5_derived_value_trap": 24,
+    "s6_conflicting_markers": 24,
+    "s7_nonfasting_uninterpretable": 30,
+    "s8_population_context": 30,
+    "s9_partial_panel": 30
+  },
+  "counts_by_expected_escalation": {
+    "EMERGENCY_NOW": 38,
+    "NO_ACTION": 355,
+    "ROUTINE": 110,
+    "SEE_DOCTOR_2WK": 58,
+    "URGENT_24H": 39
+  },
+  "counts_by_lab": {
+    "CEHL-CEB": 176,
+    "NLMRL-BAG": 224,
+    "SADL-MNL": 200
+  },
+  "labs": [
+    {
+      "lab_code": "SADL-MNL",
+      "lab_name": "Sta. Ana Diagnostic Laboratory",
+      "reports_si_units": false,
+      "prints_flags": true
+    },
+    {
+      "lab_code": "CEHL-CEB",
+      "lab_name": "Cebu Executive Health Laboratory",
+      "reports_si_units": true,
+      "prints_flags": false
+    },
+    {
+      "lab_code": "NLMRL-BAG",
+      "lab_name": "Northern Luzon Medical Reference Laboratory",
+      "reports_si_units": false,
+      "prints_flags": true
+    }
+  ]
+}
