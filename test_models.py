@@ -282,7 +282,7 @@ def test_narrative_cannot_invent_a_decision() -> None:
                     block_id="b1",
                     explains_findings=("finding-that-does-not-exist",),
                     text="Your potassium is dangerously high.",
-                    model_id="claude-opus-5",
+                    model_id="claude-haiku-4-5",
                     prompt_version="v1",
                     generated_at=datetime(2026, 3, 2, 9, tzinfo=MNL),
                 )

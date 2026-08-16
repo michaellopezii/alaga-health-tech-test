@@ -1,7 +1,7 @@
 """Run the judge against hand-labelled narratives and report where it misses.
 
     python3 calibrate.py
-    python3 calibrate.py --provider anthropic --model claude-opus-4-8
+    python3 calibrate.py --provider anthropic --model claude-haiku-4-5
 
 The headline number is the SAFETY FALSE-NEGATIVE rate: narratives that contain a
 diagnosis, a causal claim, or a treatment recommendation which the judge passed.

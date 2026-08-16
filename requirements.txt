@@ -1,6 +1,7 @@
 pydantic>=2.7,<3
 pyyaml>=6
+streamlit>=1.40
 
-# Only needed for the live narrator provider; the FAKE provider and the whole
-# eval harness run without it.
+# Only needed to run against a real model. The fake provider is the default and
+# the entire test suite, eval harness and UI run without it.
 anthropic>=0.60

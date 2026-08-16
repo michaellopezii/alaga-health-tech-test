@@ -6,7 +6,7 @@ warning in a health pipeline is a thing people stop reading.
 
     python3 eval_narrative.py                      # run the eval set
     python3 eval_narrative.py --corpus fixtures/corpus.jsonl
-    python3 eval_narrative.py --provider anthropic --model claude-opus-5
+    python3 eval_narrative.py --provider anthropic --model claude-haiku-4-5
 
 WHAT THESE GATES DO NOT CATCH -- deliberately left to the LLM judge, because a
 regex that pretends to check meaning is worse than an honest gap:

@@ -348,9 +348,9 @@ class AnthropicProvider:
     lazily: the FAKE path must run with the package absent.
     """
 
-    model_id: str = "claude-opus-5"
+    model_id: str = "claude-haiku-4-5"
     max_tokens: int = 8000
-    effort: str = "medium"
+    effort: str | None = None
     _client: Any = None
 
     def __post_init__(self) -> None:
@@ -364,15 +364,18 @@ class AnthropicProvider:
         self._client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
+        # `effort` is off by default because the default model does not accept
+        # it: on Haiku 4.5 an effort value is rejected outright. Set it only
+        # when pointing this at a model that supports the parameter.
+        output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": schema}}
+        if self.effort is not None:
+            output_config["effort"] = self.effort
         response = self._client.messages.create(
             model=self.model_id,
             max_tokens=self.max_tokens,
             system=system,
             messages=[{"role": "user", "content": user}],
-            output_config={
-                "format": {"type": "json_schema", "schema": schema},
-                "effort": self.effort,
-            },
+            output_config=output_config,
         )
         if response.stop_reason == "refusal":
             raise NarrationError(f"model refused: {getattr(response, 'stop_details', None)}")
