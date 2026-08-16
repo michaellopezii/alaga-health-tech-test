@@ -32,6 +32,7 @@
       "hemolysis": "none",
       "lipemia": "gross",
       "icterus": "none",
+      "observations": [],
       "comments": [
         {
           "text": "Specimen grossly lipemic. Sodium measured by indirect ion-selective electrode may read low in the presence of severe lipemia (pseudohyponatremia).",

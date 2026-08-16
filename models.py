@@ -663,6 +663,29 @@ class InterferenceGrade(str, Enum):
     NOT_ASSESSED = "not_assessed"
 
 
+class PreAnalyticObservation(str, Enum):
+    """Coded pre-analytic findings, as a lab's comment-code system records them.
+
+    These exist because the rules engine must never read ``Specimen.comments``.
+    Comment text is untrusted and injectable; a rule that regex-matches it is a
+    rule an attacker can fire or silence by writing the right sentence into a
+    field we transcribe. Any pre-analytic fact allowed to change an escalation
+    has to be promoted to a coded value here by the ingest step, which is a
+    separate component with its own review.
+
+    Free text is still kept verbatim alongside, because it carries nuance a code
+    cannot. It informs humans. It does not drive rules.
+    """
+
+    PLATELET_CLUMPING = "platelet_clumping"
+    DRAWN_ABOVE_IV_LINE = "drawn_above_iv_line"
+    DELAYED_SEPARATION = "delayed_separation"
+    CLOTTED_SPECIMEN = "clotted_specimen"
+    UNDERFILLED_TUBE = "underfilled_tube"
+    DIFFICULT_DRAW = "difficult_draw"
+    IMPROPER_STORAGE_TEMPERATURE = "improper_storage_temperature"
+
+
 class SpecimenType(str, Enum):
     SERUM = "serum"
     PLASMA_EDTA = "plasma_edta"
@@ -690,6 +713,12 @@ class Specimen(BaseModel):
     hemolysis: InterferenceGrade = InterferenceGrade.NOT_ASSESSED
     lipemia: InterferenceGrade = InterferenceGrade.NOT_ASSESSED
     icterus: InterferenceGrade = InterferenceGrade.NOT_ASSESSED
+
+    observations: tuple[PreAnalyticObservation, ...] = Field(
+        default=(),
+        description="Coded pre-analytic observations. These, not the free-text "
+        "comments, are what the rules engine is permitted to read.",
+    )
 
     comments: list[UntrustedText] = Field(
         default_factory=list,
@@ -1001,6 +1030,33 @@ def max_escalation(items: Iterable[Escalation]) -> Escalation:
     return max(items, key=lambda e: _ESCALATION_RANK[e], default=Escalation.NO_ACTION)
 
 
+class Severity(str, Enum):
+    """How far out the value is. Orthogonal to what to do about it.
+
+    Escalation answers "how fast"; severity answers "how bad", and the review
+    queue needs the second to order cases that share the first. CRITICAL is
+    assigned only by breaching a threshold in the threshold file, never by the
+    generic deviation bands.
+    """
+
+    NONE = "none"
+    BORDERLINE = "borderline"
+    MILD = "mild"
+    MODERATE = "moderate"
+    MARKED = "marked"
+    CRITICAL = "critical"
+
+
+SEVERITY_RANK: dict[Severity, int] = {
+    Severity.NONE: 0,
+    Severity.BORDERLINE: 1,
+    Severity.MILD: 2,
+    Severity.MODERATE: 3,
+    Severity.MARKED: 4,
+    Severity.CRITICAL: 5,
+}
+
+
 class RuleFinding(BaseModel):
     """A decision made by the deterministic rules engine.
 
@@ -1009,6 +1065,11 @@ class RuleFinding(BaseModel):
     author one of these. That is enforced socially by the pipeline and
     structurally by the fact that ``NarrativeBlock`` can only reference IDs that
     already exist.
+
+    ``escalation`` is the value after every gate has run. ``escalation_before_gates``
+    is what the rule produced before any of them. Whenever the two differ,
+    ``suppressed_by`` and ``gate_notes`` say which gate moved it and why, so the
+    panel escalation can be recomputed by hand from this list alone.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1017,6 +1078,7 @@ class RuleFinding(BaseModel):
     rule_id: str
     rule_version: str
     escalation: Escalation
+    severity: Severity = Severity.NONE
     triggering_analytes: tuple[AnalyteName, ...]
     machine_summary: str = Field(
         description="Terse, template-generated. Not patient-facing prose."
@@ -1026,6 +1088,40 @@ class RuleFinding(BaseModel):
         description="Rule IDs that downgraded this finding, e.g. a hemolysis "
         "qualifier on a potassium critical. Suppression is recorded, never silent.",
     )
+    escalation_before_gates: Escalation | None = Field(
+        default=None,
+        description="Escalation as first produced, when a gate later lowered it. "
+        "None means no gate touched this finding.",
+    )
+    unnarratable: bool = Field(
+        default=False,
+        description="The underlying number must not be stated as fact in patient-"
+        "facing prose: an invalid derivation, or a bound the censoring does not "
+        "support. Such a finding contributes NO_ACTION to the escalation maximum.",
+    )
+    gate_notes: tuple[str, ...] = Field(
+        default=(), description="One line per gate applied, in the order applied."
+    )
+    observed: str | None = Field(
+        default=None, description="Value as printed, for the review queue."
+    )
+    reference: str | None = Field(
+        default=None, description="Reference range as printed, for the review queue."
+    )
+
+    @model_validator(mode="after")
+    def _gates_only_lower(self) -> "RuleFinding":
+        # The precedence rule depends on this: a reviewer must be able to trust
+        # that no gate ever raised an escalation behind their back.
+        if self.escalation_before_gates is None:
+            return self
+        if _ESCALATION_RANK[self.escalation] > _ESCALATION_RANK[self.escalation_before_gates]:
+            raise ValueError(
+                f"{self.rule_id}: gates raised escalation from "
+                f"{self.escalation_before_gates.value} to {self.escalation.value}; "
+                "gates are monotone non-increasing by design"
+            )
+        return self
 
 
 class NarrativeBlock(BaseModel):
@@ -1042,6 +1138,52 @@ class NarrativeBlock(BaseModel):
     model_id: str
     prompt_version: str
     generated_at: datetime
+
+
+class PanelAssessment(BaseModel):
+    """What the rules engine returns for one panel.
+
+    ``escalation`` is the maximum over ``findings`` after gating, and nothing
+    else. ``trace`` records the arithmetic in words so a reviewer can check the
+    result without reading the code.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    panel_id: str
+    escalation: Escalation
+    findings: tuple[RuleFinding, ...] = ()
+    trace: tuple[str, ...] = ()
+    engine_version: str
+    thresholds_version: str
+
+    @model_validator(mode="after")
+    def _escalation_is_the_max(self) -> "PanelAssessment":
+        expected = max_escalation(f.escalation for f in self.findings)
+        if self.escalation is not expected:
+            raise ValueError(
+                f"{self.panel_id}: escalation {self.escalation.value} is not the "
+                f"maximum over findings ({expected.value}). The panel escalation is "
+                "the max after gating and is never adjusted afterwards."
+            )
+        return self
+
+    @property
+    def max_severity(self) -> Severity:
+        return max(
+            (f.severity for f in self.findings),
+            key=lambda s: SEVERITY_RANK[s],
+            default=Severity.NONE,
+        )
+
+    @property
+    def unnarratable_analytes(self) -> tuple[AnalyteName, ...]:
+        """Analytes whose printed number must not be stated as fact."""
+        out: list[AnalyteName] = []
+        for f in self.findings:
+            if f.unnarratable:
+                out.extend(f.triggering_analytes)
+        return tuple(dict.fromkeys(out))
 
 
 class ReviewDecision(str, Enum):

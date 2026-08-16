@@ -32,6 +32,9 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [
+        "delayed_separation"
+      ],
       "comments": [
         {
           "text": "Specimen received 9 hours after collection, transported without refrigeration. Delayed serum separation can raise potassium through cellular leakage.",

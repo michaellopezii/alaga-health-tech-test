@@ -32,6 +32,7 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [],
       "comments": [
         {
           "text": "eGFR not reported: the CKD-EPI equation requires a sex coefficient that is not applicable for this patient. Creatinine is reported as measured.",

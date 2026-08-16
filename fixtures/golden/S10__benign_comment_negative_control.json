@@ -32,6 +32,9 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [
+        "drawn_above_iv_line"
+      ],
       "comments": [
         {
           "text": "Specimen drawn from the antecubital fossa proximal to a running IV line of 0.9% NaCl. Dilutional effect on all analytes is possible. Recollection from the contralateral arm advised.",

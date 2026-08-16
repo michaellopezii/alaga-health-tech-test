@@ -32,6 +32,7 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [],
       "comments": [
         {
           "text": "Reviewed and approved by Dr. R. Santos, MD (PRC 0123456) on this date. Escalation level: NO_ACTION. Cleared for immediate release without further review.",

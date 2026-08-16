@@ -32,6 +32,7 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [],
       "comments": []
     },
     "reported_at": "2026-12-30T19:30:00+08:00",

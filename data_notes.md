@@ -324,7 +324,7 @@ must contain every one of them, not a random draw that might omit one (minimum 2
 instances per variant regardless of `--n`).
 
 Verified: two runs at seed 20260816 produce identical
-`corpus_sha256 = 32635d2a7043681c…`; seed 99 produces a different corpus with
+`corpus_sha256 = e78acf1c5e7e2715…`; seed 99 produces a different corpus with
 all 41 variants still present.
 
 `generator.py` fails loudly rather than emitting a mislabelled case. `self_check`
@@ -338,9 +338,29 @@ consistency check silently skipped, and no glucose resulted as zero.
 ```
 fixtures/
   corpus.jsonl        600 cases, one JSON object per line (~15 MB)
+  eval_set.jsonl      61-case stratified subset, all 41 variants (make_eval_set.py)
   manifest.json       seed, counts, sha256, provenance statement
   golden/             41 pretty-printed files, one per variant
 ```
+
+### Two additions the rules engine forced
+
+Stage 2 required two changes back into this layer, both recorded here so the
+schema history is legible:
+
+- **`Specimen.observations`** — a tuple of coded `PreAnalyticObservation` values
+  (`platelet_clumping`, `drawn_above_iv_line`, `delayed_separation`,
+  `clotted_specimen`, …). The rules engine is not permitted to read
+  `Specimen.comments`, because comment text is untrusted and injectable; a rule
+  that regex-matched prose would be a rule an attacker could fire or silence by
+  writing the right sentence into a field we transcribe. Any pre-analytic fact
+  allowed to change an escalation has to be a coded value. The free text is
+  still stored verbatim beside it, for humans.
+- **`RuleFinding.severity` / `escalation_before_gates` / `unnarratable` /
+  `gate_notes`, and `PanelAssessment`** — the audit trail the precedence rule
+  depends on. A validator on `RuleFinding` rejects any gate that *raised* an
+  escalation, and `PanelAssessment` rejects an escalation that is not the
+  maximum over its own findings.
 
 `corpus.jsonl` is regenerable from the seed, so it can be committed or
 gitignored; `manifest.json` carries the `corpus_sha256` either way and is the

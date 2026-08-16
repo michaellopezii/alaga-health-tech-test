@@ -32,6 +32,10 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [
+        "clotted_specimen",
+        "underfilled_tube"
+      ],
       "comments": [
         {
           "text": "Chemistry tube received clotted and underfilled. Liver panel not performed. Recollection requested.",

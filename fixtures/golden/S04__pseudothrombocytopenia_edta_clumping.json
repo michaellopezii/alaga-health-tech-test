@@ -32,6 +32,9 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [
+        "platelet_clumping"
+      ],
       "comments": [
         {
           "text": "Platelet clumping noted on peripheral smear, EDTA-dependent pattern. True platelet count likely higher. Recollect in sodium citrate tube for verification.",

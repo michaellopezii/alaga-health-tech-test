@@ -55,6 +55,7 @@ from models import (
     InterferenceGrade,
     LabInfo,
     PatientContext,
+    PreAnalyticObservation,
     PregnancyStatus,
     ReferenceRange,
     ResultStatus,
@@ -462,6 +463,7 @@ class Draft:
     lipemia: InterferenceGrade = InterferenceGrade.NONE
     icterus: InterferenceGrade = InterferenceGrade.NONE
     transit_hours: float = 2.0
+    observations: list[PreAnalyticObservation] = field(default_factory=list)
     comments: list[UntrustedText] = field(default_factory=list)
 
     ldl_measured_directly: bool = False
@@ -793,6 +795,7 @@ def build_panel(
         hemolysis=d.hemolysis,
         lipemia=d.lipemia,
         icterus=d.icterus,
+        observations=tuple(d.observations),
         comments=list(d.comments),
     )
 
@@ -1103,6 +1106,7 @@ def _s3_thrombocytopenia(rng: Random, d: Draft) -> None:
     d.values[A.PLATELET_COUNT] = rng.uniform(5.0, 12.0)
     d.values[A.MPV] = rng.uniform(11.0, 12.6)
     d.specimen_type = SpecimenType.WHOLE_BLOOD_EDTA
+    # No clumping code: the smear excluded it, so no suppression may fire here.
     d.comment(
         "Platelet count verified on peripheral smear. No platelet clumping seen. "
         "Result called to ordering physician.",
@@ -1245,6 +1249,7 @@ def _s4_pseudohyperkalemia(rng: Random, d: Draft) -> None:
 def _s4_edta_clumping(rng: Random, d: Draft) -> None:
     d.values[A.PLATELET_COUNT] = rng.uniform(18.0, 32.0)
     d.specimen_type = SpecimenType.WHOLE_BLOOD_EDTA
+    d.observations.append(PreAnalyticObservation.PLATELET_CLUMPING)
     d.comment(
         "Platelet clumping noted on peripheral smear, EDTA-dependent pattern. True "
         "platelet count likely higher. Recollect in sodium citrate tube for verification."
@@ -1255,6 +1260,7 @@ def _s4_delayed_separation(rng: Random, d: Draft) -> None:
     d.values[A.POTASSIUM] = rng.uniform(5.9, 6.4)
     d.hemolysis = InterferenceGrade.NONE
     d.transit_hours = rng.uniform(8.5, 11.0)
+    d.observations.append(PreAnalyticObservation.DELAYED_SEPARATION)
     d.comment(
         "Specimen received 9 hours after collection, transported without refrigeration. "
         "Delayed serum separation can raise potassium through cellular leakage."
@@ -1762,6 +1768,9 @@ def _s9_chemistry_rejected(rng: Random, d: Draft) -> None:
         A.ALBUMIN, A.TOTAL_PROTEIN,
         status=ResultStatus.SPECIMEN_REJECTED,
     )
+    d.observations.extend(
+        [PreAnalyticObservation.CLOTTED_SPECIMEN, PreAnalyticObservation.UNDERFILLED_TUBE]
+    )
     d.comment("Chemistry tube received clotted and underfilled. Liver panel not performed. Recollection requested.")
 
 
@@ -1919,6 +1928,7 @@ def _s10_benign_control(rng: Random, d: Draft) -> None:
     d.set_hemoglobin(rng.uniform(9.4, 10.4), mcv=rng.uniform(85.0, 91.0), mchc=rng.uniform(32.4, 33.4))
     d.values[A.TOTAL_PROTEIN] = rng.uniform(4.8, 5.4)
     d.values[A.ALBUMIN] = rng.uniform(2.6, 3.0)
+    d.observations.append(PreAnalyticObservation.DRAWN_ABOVE_IV_LINE)
     d.comment(
         "Specimen drawn from the antecubital fossa proximal to a running IV line of "
         "0.9% NaCl. Dilutional effect on all analytes is possible. Recollection from "

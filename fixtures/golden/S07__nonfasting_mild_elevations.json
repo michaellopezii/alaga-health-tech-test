@@ -32,6 +32,7 @@
       "hemolysis": "none",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [],
       "comments": [
         {
           "text": "Patient reported breakfast approximately 2 hours prior to collection.",

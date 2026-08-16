@@ -32,6 +32,7 @@
       "hemolysis": "gross",
       "lipemia": "none",
       "icterus": "none",
+      "observations": [],
       "comments": [
         {
           "text": "Specimen grossly hemolyzed (hemolysis index 4+). Potassium, LDH and AST may be falsely elevated. Recollection advised.",

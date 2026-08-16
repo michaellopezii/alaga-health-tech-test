@@ -3,7 +3,7 @@
   "master_seed": 20260816,
   "case_count": 600,
   "variant_count": 41,
-  "corpus_sha256": "32635d2a7043681c27d954bc974837e0ce020cf674141bfe2b30f32e8bf48777",
+  "corpus_sha256": "e78acf1c5e7e271572c544806ec34e1564fea352a27b29b8b3249145c323d68a",
   "ground_truth_provenance": "authored_by_construction: every expected_escalation was written into its Blueprint at design time. No rules engine was run over these panels to produce a label.",
   "counts_by_stratum": {
     "s10_adversarial_injection": 18,

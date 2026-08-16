@@ -1,0 +1,501 @@
+# =============================================================================
+# Alaga rules engine — threshold configuration
+# =============================================================================
+#
+# Every number the rules engine uses lives in this file. rules.py contains no
+# clinical constants; if you find one there, it is a bug.
+#
+# READ THIS BEFORE USING ANY VALUE BELOW.
+#
+# No medical director has reviewed these. Every `owner` is UNASSIGNED and every
+# `source` describes where the number came from honestly, which in most cases is
+# "commonly published range, midpoint selected". They are placeholders chosen so
+# the engine can be built and evaluated, not clinical policy. Critical-value
+# tables are institution-specific by design: two hospitals in Metro Manila will
+# not agree on the platelet cutoff, and neither is wrong.
+#
+# What this file deliberately does NOT contain:
+#   - Reference ranges. Those are lab-specific and travel on each result. The
+#     engine reads them off the panel; it never looks one up here.
+#   - Thresholds invented to make the table look complete. Most of the panel has
+#     no critical value, because most analytes have no value at which a person
+#     needs an emergency room tonight. Cholesterol has none. Liver enzymes have
+#     none. Thyroid has none. Their absence is a clinical statement.
+
+schema_version: "1.0.0"
+thresholds_version: "0.1.0-draft"
+status: NOT_APPROVED_FOR_CLINICAL_USE
+
+approval:
+  medical_director: UNASSIGNED
+  approved_on: null
+  review_due: null
+  notes: >
+    Placeholder values pending clinical governance. Before any patient-facing
+    use, each entry needs a named owner, a specific source, and a review date.
+    The critical-value table in particular should be reconciled with the
+    performing laboratories' own call-back thresholds, since a value we treat as
+    critical that the lab does not phone out creates an expectation gap.
+
+# -----------------------------------------------------------------------------
+# Ordering
+# -----------------------------------------------------------------------------
+# Lowest to highest. The panel escalation is the maximum over findings, taken
+# after gating. See the precedence rule in rules.py.
+
+escalation_order:
+  - NO_ACTION
+  - ROUTINE
+  - SEE_DOCTOR_2WK
+  - URGENT_24H
+  - EMERGENCY_NOW
+
+severity_order:
+  - none
+  - borderline
+  - mild
+  - moderate
+  - marked
+  - critical
+
+# How a severity tier becomes an escalation, for every finding that is not
+# gated. CRITICAL is reachable only through the critical_values table below.
+severity_to_escalation:
+  critical: EMERGENCY_NOW
+  marked: URGENT_24H
+  moderate: SEE_DOCTOR_2WK
+  mild: ROUTINE
+  borderline: NO_ACTION
+  none: NO_ACTION
+
+# -----------------------------------------------------------------------------
+# Unit conversions
+# -----------------------------------------------------------------------------
+# Absolute thresholds are stated in one unit; results arrive in whatever unit
+# the performing lab printed. Factors below multiply a reported value to give
+# the canonical unit.
+#
+# If a result arrives in a unit with no factor here, the engine does NOT skip
+# the check. It emits a DATA.UNIT_UNCONVERTIBLE finding, because silently not
+# evaluating a critical threshold is the worst available outcome.
+#
+# Severity banding needs none of this: it is a ratio of a value to its own
+# printed range boundary, so the units cancel.
+
+unit_conversions:
+  fasting_blood_sugar:
+    canonical: mg/dL
+    factors: {mg/dL: 1.0, mmol/L: 18.0182}
+    source: "Glucose molar mass 180.156 g/mol."
+    owner: UNASSIGNED
+  hemoglobin:
+    canonical: g/dL
+    factors: {g/dL: 1.0, g/L: 0.1}
+    source: "Decimal prefix only."
+    owner: UNASSIGNED
+  platelet_count:
+    canonical: x10^9/L
+    factors: {x10^9/L: 1.0, x10^3/uL: 1.0}
+    source: "x10^9/L and x10^3/uL are numerically identical."
+    owner: UNASSIGNED
+  absolute_neutrophil_count:
+    canonical: x10^9/L
+    factors: {x10^9/L: 1.0, x10^3/uL: 1.0}
+    source: "x10^9/L and x10^3/uL are numerically identical."
+    owner: UNASSIGNED
+  potassium:
+    canonical: mmol/L
+    factors: {mmol/L: 1.0, mEq/L: 1.0}
+    source: "Potassium is monovalent, so mmol/L and mEq/L coincide."
+    owner: UNASSIGNED
+  sodium:
+    canonical: mmol/L
+    factors: {mmol/L: 1.0, mEq/L: 1.0}
+    source: "Sodium is monovalent, so mmol/L and mEq/L coincide."
+    owner: UNASSIGNED
+  creatinine:
+    canonical: mg/dL
+    factors: {mg/dL: 1.0, umol/L: 0.0113122}
+    source: "Creatinine molar mass 113.12 g/mol; 1 mg/dL = 88.4 umol/L."
+    owner: UNASSIGNED
+  triglycerides:
+    canonical: mg/dL
+    factors: {mg/dL: 1.0, mmol/L: 88.57}
+    source: "Conventional triglyceride conversion factor."
+    owner: UNASSIGNED
+
+# -----------------------------------------------------------------------------
+# Critical values
+# -----------------------------------------------------------------------------
+# Breaching one of these assigns severity CRITICAL, which maps to EMERGENCY_NOW.
+#
+# Seven analytes. Everything else in the panel has no entry, and that is the
+# intended state — not a gap waiting to be filled. A critical value means "this
+# person may come to harm within hours", which is simply not true of a
+# cholesterol, an SGPT, or a TSH at any value.
+#
+# Critical detection runs independently of the lab's printed range. If a lab
+# prints a range that would leave a potassium of 7.0 unflagged, the critical
+# rule still fires.
+
+critical_values:
+
+  fasting_blood_sugar:
+    unit: mg/dL
+    low:
+      value: 50.0
+      source: >
+        Commonly published adult critical low for glucose spans 40-50 mg/dL.
+        Upper end of that span selected as the more conservative trigger.
+      date: 2026-08-16
+      owner: UNASSIGNED
+    high:
+      value: 450.0
+      source: >
+        Commonly published adult critical high for glucose spans 400-500 mg/dL.
+        Midpoint selected.
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+  hemoglobin:
+    unit: g/dL
+    low:
+      value: 7.0
+      source: >
+        Aligns with the transfusion-threshold convention for stable adults,
+        which is the decision this value exists to prompt.
+      date: 2026-08-16
+      owner: UNASSIGNED
+    high:
+      value: 20.0
+      source: >
+        Commonly published critical high for hemoglobin. Fires rarely; retained
+        because untreated polycythemia at this level carries thrombotic risk.
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+  platelet_count:
+    unit: x10^9/L
+    low:
+      value: 30.0
+      source: >
+        Published adult critical low spans 20-50 x10^9/L, with institutions
+        split roughly evenly. 30 selected as a midpoint. THIS IS THE MOST
+        CONTESTED ENTRY IN THIS FILE: at 20 the engine misses counts in the
+        20-30 band, at 50 it calls an emergency on counts many haematologists
+        would manage in clinic. Needs a named owner before launch.
+      date: 2026-08-16
+      owner: UNASSIGNED
+    high:
+      value: 1000.0
+      source: "Commonly published critical high for platelet count."
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+  potassium:
+    unit: mmol/L
+    low:
+      value: 2.8
+      source: "Commonly published adult critical low spans 2.5-3.0 mmol/L."
+      date: 2026-08-16
+      owner: UNASSIGNED
+    high:
+      value: 6.0
+      source: >
+        Commonly published adult critical high spans 6.0-6.5 mmol/L. Lower end
+        selected: the action this triggers is an ECG and a repeat, both of which
+        are low-harm, while a missed hyperkalemia is an arrhythmia.
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+  sodium:
+    unit: mmol/L
+    low:
+      value: 120.0
+      source: "Commonly published adult critical low for sodium."
+      date: 2026-08-16
+      owner: UNASSIGNED
+    high:
+      value: 160.0
+      source: "Commonly published adult critical high for sodium."
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+  absolute_neutrophil_count:
+    unit: x10^9/L
+    low:
+      value: 0.5
+      source: >
+        Severe neutropenia. Added beyond the six analytes originally scoped,
+        because it is a standard critical value and the risk is invisible in the
+        WBC alone: a normal-looking WBC with a low neutrophil percentage
+        produces this. Fires only on the derived absolute count.
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+  creatinine:
+    unit: mg/dL
+    high:
+      value: 6.0
+      source: >
+        WEAKEST ENTRY IN THIS FILE. Many laboratories define no adult critical
+        for creatinine at all, on the grounds that a single value cannot
+        distinguish acute from long-standing renal failure, and that the action
+        depends entirely on the trend. Retained at a deliberately high trigger.
+        Fires on no case in the current evaluation corpus. A reviewer may
+        reasonably delete this entry outright.
+      date: 2026-08-16
+      owner: UNASSIGNED
+
+# Analytes with NO critical value, recorded explicitly so their absence reads as
+# a decision rather than an oversight. Anything not listed in critical_values
+# and not listed here has simply not been considered yet.
+no_critical_value_by_design:
+  rationale: >
+    A critical value means harm within hours without intervention. These
+    analytes have no such point. They can still produce high-severity findings
+    through the deviation bands; they cannot produce an EMERGENCY_NOW.
+  analytes:
+    - total_cholesterol
+    - hdl_cholesterol
+    - ldl_cholesterol
+    - non_hdl_cholesterol
+    - triglycerides       # severe hypertriglyceridemia is real, but its risk is
+                          # pancreatitis over days, handled by the bands
+    - sgpt
+    - sgot
+    - alkaline_phosphatase
+    - total_bilirubin
+    - direct_bilirubin
+    - indirect_bilirubin
+    - albumin
+    - total_protein
+    - globulin
+    - tsh
+    - free_t3
+    - free_t4
+    - hba1c
+    - bun
+    - uric_acid
+    - egfr
+    - ferritin
+    - wbc
+    - rbc
+    - hematocrit
+    - mcv
+    - mch
+    - mchc
+    - rdw
+    - mpv
+    - chloride
+    - mentzer_index
+
+# -----------------------------------------------------------------------------
+# Severity banding
+# -----------------------------------------------------------------------------
+# For findings that are not critical. Ordering the review queue needs something
+# finer than a five-value escalation enum.
+#
+# Default model: fold-deviation beyond the printed boundary.
+#   above the ceiling:  r = value / high
+#   below the floor:    r = low / value
+# Lab values are roughly log-normal, so a ratio behaves across analytes in a way
+# that a fraction-of-range-width does not. A platelet count of 60 is 0.36 range
+# widths below its floor and 2.5-fold below it; only the second reads correctly.
+
+default_severity_bands:
+  metric: fold_deviation_beyond_boundary
+  bands:
+    borderline: 1.00
+    mild: 1.15
+    moderate: 1.50
+    marked: 3.00
+  source: >
+    Chosen on the principle that a value three-fold beyond its limit is markedly
+    abnormal for most analytes. Not derived from outcome data. These four numbers
+    move the escalation of every non-critical finding and should be among the
+    first things a medical director rules on.
+  date: 2026-08-16
+  owner: UNASSIGNED
+
+# Analyte-specific overrides, where the generic fold model demonstrably
+# misreads clinical severity. Both entries below follow conventional grading
+# that exists independently of this product.
+#
+# These apply ONLY to deciding how bad an already-flagged value is. Whether a
+# value is flagged at all still comes from the range the lab printed.
+severity_anchors:
+
+  hemoglobin:
+    direction: low
+    unit: g/dL
+    comment: >
+      Hemoglobin has a narrow reference interval, so fold-deviation compresses
+      clinically enormous differences: 8.8 and 11.5 g/dL are 1.36-fold and
+      1.04-fold below a 12.0 floor, yet one is moderate anemia and the other is
+      barely out. Conventional anemia grading is used instead.
+    bands:  # value strictly below the stated number takes that severity
+      marked: 8.0
+      moderate: 10.0
+      mild: 11.0
+    source: "WHO-style anemia severity grading (severe <8, moderate 8-10.9, mild 11-11.9)."
+    date: 2026-08-16
+    owner: UNASSIGNED
+
+  platelet_count:
+    direction: low
+    unit: x10^9/L
+    comment: >
+      Same problem in the other direction: a 150-400 interval is wide, so a
+      platelet count of 60 lands only 0.36 range-widths low.
+    bands:
+      marked: 50.0
+      moderate: 100.0
+      mild: 150.0
+    source: "Conventional thrombocytopenia grading (severe <50, moderate 50-99, mild 100-149)."
+    date: 2026-08-16
+    owner: UNASSIGNED
+
+# -----------------------------------------------------------------------------
+# Pre-analytic suppression
+# -----------------------------------------------------------------------------
+# Each rule caps a finding rather than clearing it: new = min(original, ceiling).
+# A companion recollect finding is emitted at the same capped level, so deleting
+# either one alone does not collapse the escalation.
+#
+# `direction` is load-bearing. Hemolysis drives potassium out of red cells, so it
+# can only explain a HIGH potassium; a low potassium in a hemolyzed tube is not
+# suppressed. Clumping can only falsely lower a platelet count.
+#
+# `condition` reads structured specimen fields only. The engine never reads
+# Specimen.comments, which is untrusted text.
+
+pre_analytic_suppression:
+
+  - rule_id: PRE.K.HEMOLYSIS
+    analyte: potassium
+    direction: high
+    condition:
+      hemolysis_at_least: moderate
+    ceiling: URGENT_24H
+    recollect_action: >
+      Recollect potassium on a fresh, non-hemolyzed specimen within 24 hours.
+    rationale: >
+      Hemolysis releases intracellular potassium and inflates the measured
+      value, so the number is unusable. It is NOT evidence the patient's
+      potassium is normal: hemolysis and genuine hyperkalemia occur in the same
+      tube, and clearing on the presence of a hemolysis note is a documented
+      route to a missed arrhythmia. Capped, never cleared.
+    source: "Standard pre-analytic interference; ceiling chosen by this team."
+    date: 2026-08-16
+    owner: UNASSIGNED
+
+  - rule_id: PRE.K.DELAYED_SEPARATION
+    analyte: potassium
+    direction: high
+    condition:
+      transit_hours_at_least: 6.0
+      any_observation: [delayed_separation, improper_storage_temperature]
+    ceiling: URGENT_24H
+    recollect_action: >
+      Recollect potassium with prompt serum separation within 24 hours.
+    rationale: >
+      Potassium leaks from cells into serum during prolonged unrefrigerated
+      transit with no visible hemolysis at all, so the hemolysis index does not
+      clear this specimen. Specimen age is the signal, and it is available from
+      the collection and analysis timestamps.
+    source: "Standard pre-analytic interference; 6 hour trigger chosen by this team."
+    date: 2026-08-16
+    owner: UNASSIGNED
+
+  - rule_id: PRE.PLT.CLUMPING
+    analyte: platelet_count
+    direction: low
+    condition:
+      any_observation: [platelet_clumping]
+    ceiling: URGENT_24H
+    recollect_action: >
+      Recollect in a sodium citrate tube within 24 hours to establish the true
+      platelet count.
+    rationale: >
+      EDTA-dependent platelet clumping produces a falsely low automated count.
+      The true count is unknown until a citrate sample is run, and unknown is not
+      the same as normal.
+    source: "Standard pre-analytic interference; ceiling chosen by this team."
+    date: 2026-08-16
+    owner: UNASSIGNED
+
+  - rule_id: PRE.NA.LIPEMIA
+    analyte: sodium
+    direction: low
+    condition:
+      lipemia_at_least: moderate
+    ceiling: SEE_DOCTOR_2WK
+    recollect_action: >
+      Disregard the sodium; request direct ion-selective electrode measurement.
+    rationale: >
+      Severe lipemia displaces plasma water, so indirect ISE methods read sodium
+      falsely low. Ceiling is lower than the potassium rules because
+      pseudohyponatremia does not carry the same arrhythmia risk if wrong, and
+      because a genuinely critical sodium would still be caught by the
+      critical_values table before this rule can cap it below EMERGENCY_NOW.
+    source: "Standard pre-analytic interference; ceiling chosen by this team."
+    date: 2026-08-16
+    owner: UNASSIGNED
+
+# -----------------------------------------------------------------------------
+# Fasting gating
+# -----------------------------------------------------------------------------
+# Glucose and triglycerides compared against fasting reference ranges are
+# uninterpretable when the patient was fed, or when nobody recorded whether they
+# were. Unknown is treated as not-fasting: missing metadata is not evidence of
+# compliance.
+#
+# The exception matters as much as the rule. A non-fasting glucose of 280 is
+# abnormal under any sampling condition, and "the patient had breakfast" must not
+# become a blanket dismissal.
+
+fasting_gating:
+  rule_id: PRE.FASTING
+  applies_to: [fasting_blood_sugar, triglycerides]
+  gate_when_fasting_status_in: [non_fasting, unknown]
+  ceiling: ROUTINE
+  repeat_action: >
+    Repeat on a properly fasted specimen with fasting status documented.
+  fasting_independent:
+    fasting_blood_sugar:
+      value: 200.0
+      unit: mg/dL
+      source: >
+        A random plasma glucose at or above 200 mg/dL is abnormal irrespective
+        of fasting state, so the gate does not apply above it.
+      date: 2026-08-16
+      owner: UNASSIGNED
+    triglycerides:
+      value: 500.0
+      unit: mg/dL
+      source: >
+        Post-meal triglyceride rise does not account for this magnitude, and
+        pancreatitis risk is not conditional on fasting state.
+      date: 2026-08-16
+      owner: UNASSIGNED
+  source: "Gate structure and ceiling chosen by this team."
+  date: 2026-08-16
+  owner: UNASSIGNED
+
+# -----------------------------------------------------------------------------
+# Not-resulted analytes
+# -----------------------------------------------------------------------------
+# NOT_ORDERED produces no finding of any kind: a test nobody asked for is not an
+# event. The other non-resulted statuses represent an attempted test that
+# failed, which is an event and warrants completing the panel.
+
+not_resulted_handling:
+  rule_id: DATA.NOT_RESULTED
+  emit_finding_for: [pending, insufficient_specimen, specimen_rejected, indeterminate, suppressed_by_lab]
+  never_emit_for: [not_ordered]
+  escalation: ROUTINE
+  severity: mild
+  source: "Structure chosen by this team; NOT_ORDERED exclusion specified by product."
+  date: 2026-08-16
+  owner: UNASSIGNED
