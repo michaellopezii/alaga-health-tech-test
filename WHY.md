@@ -117,7 +117,7 @@ Each of these was a choice about where limited time paid off most:
 7. An IV-line dilution rule. The coded field exists in the data, but a rule that adjusts a whole panel at once is a bigger decision than adjusting one value, so I left it for a person to design.
 ---
  
-## 8. What we already know is wrong, and would fix next
+## 7. What we already know is wrong, and would fix next
 I would deliberately hand this over with its faults named than let you guys find them voluntarily. In priority order:
  
 1. Some analytes can never justify urgency, and the engine does not know that yet. A very low ferritin is far below its range, but nobody is hospitalized tonight for it. The engine over-escalates these. This one missing idea causes about a quarter of the disagreements. I left it out on purpose so the baseline numbers stay honest.
@@ -128,7 +128,7 @@ I would deliberately hand this over with its faults named than let you guys find
 6. One instruction contradicts one answer-key label: a not-ordered test was told to produce no finding, but the key expects a routine "please complete this test" note. I just followed the instruction literally and flagged the conflict rather than picking a side. This was my independent decision.
 ---
  
-## 9. The caution before any of this touches a real person
+## 8. The caution before any of this touches a real person
 The reference values and critical thresholds here are plausible placeholders, not approved clinical policy. 
 
 Before launch, these numbers must be replaced with values transcribed from the actual partner healthcare and signed off by a named medical director.

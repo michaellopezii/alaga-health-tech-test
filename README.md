@@ -1,6 +1,5 @@
 # Alaga Health Eval Panel
-An xecutive blood panel goes in, then a plain-language health profile
-comes out, with a physician review queue in between. **Nothing auto-releases.**
+An xecutive blood panel goes in, then a plain-language health profile comes out, with a physician review queue in between. **Nothing auto-releases.**
 
 Severity and escalation are decided by a deterministic rules engine. The LLM
 only writes prose explaining what the rules already decided. But it cannot
@@ -15,8 +14,7 @@ introduce a finding, a number, or an escalation tier.
 
 ## Setup
 
-Python 3.12. Everything below runs with **no API key and no network**. The
-default LLM provider is a deterministic fake.
+Python 3.12. Everything below runs with **no API key and no network**. The default LLM provider is a deterministic fake.
 
 ```bash
 pip install -r requirements.txt
