@@ -1,5 +1,5 @@
 # Alaga Health Eval Panel
-An xecutive blood panel goes in, then a plain-language health profile comes out, with a physician review queue in between. **Nothing auto-releases.**
+There is a blood panel result as input, then a plain-language health profile comes out, with a physician review queue in between. **Nothing auto-releases.**
 
 Severity and escalation are decided by a deterministic rules engine. The LLM
 only writes prose explaining what the rules already decided. But it cannot
