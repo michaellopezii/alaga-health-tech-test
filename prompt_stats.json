@@ -1,0 +1,23 @@
+{
+  "sessions": 2,
+  "total_prompts": 7,
+  "median_prompt_words": 393,
+  "longest_prompt_words": 660,
+  "shortest_prompt_words": 4,
+  "assistant_tool_calls": {
+    "Bash": 73,
+    "Edit": 36,
+    "Write": 21,
+    "mcp__Claude_Browser__computer": 14,
+    "mcp__Claude_Browser__javascript_tool": 4,
+    "mcp__ccd_session__mark_chapter": 1,
+    "Skill": 1,
+    "mcp__Claude_Browser__preview_start": 1,
+    "mcp__Claude_Browser__preview_logs": 1,
+    "mcp__Claude_Browser__navigate": 1,
+    "mcp__Claude_Browser__resize_window": 1,
+    "mcp__Claude_Browser__find": 1,
+    "mcp__Claude_Browser__read_page": 1,
+    "mcp__Claude_Browser__preview_stop": 1
+  }
+}
