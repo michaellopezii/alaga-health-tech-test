@@ -1,1 +1,6 @@
 pydantic>=2.7,<3
+pyyaml>=6
+
+# Only needed for the live narrator provider; the FAKE provider and the whole
+# eval harness run without it.
+anthropic>=0.60

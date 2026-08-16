@@ -630,11 +630,24 @@ class AnalyteResult(BaseModel):
         return self.reported_flag != self.flag
 
     def display_value(self) -> str:
+        """Render the value as stored, never re-rounded.
+
+        Reporting precision is a property of the analyte *and* the unit: a
+        creatinine carries two decimals in mg/dL and none in umol/L. The
+        registry holds the canonical-unit convention, so formatting blindly to
+        it would print an SI cholesterol of 5.54 as "5.5" -- a different number
+        from the one in the record, shown to the physician reading the queue.
+        Fall back to the stored precision whenever the convention would lose
+        information, and keep conventional trailing zeros when it would not.
+        """
         if self.value is None:
             return f"(not resulted: {self.status.value})"
         meta = ANALYTES[self.analyte]
         prefix = {Censoring.LEFT: "<", Censoring.RIGHT: ">", Censoring.NONE: ""}[self.censoring]
-        return f"{prefix}{self.value:.{meta.decimals}f} {self.unit.value}"
+        text = f"{self.value:.{meta.decimals}f}"
+        if float(text) != self.value:
+            text = f"{self.value:g}"
+        return f"{prefix}{text} {self.unit.value}"
 
 
 # ---------------------------------------------------------------------------
@@ -1184,6 +1197,60 @@ class PanelAssessment(BaseModel):
             if f.unnarratable:
                 out.extend(f.triggering_analytes)
         return tuple(dict.fromkeys(out))
+
+
+class NarrativeReport(BaseModel):
+    """LLM-authored prose for one assessed panel.
+
+    Everything decision-shaped on this object is copied from the ``PanelAssessment``
+    by our code. ``escalation`` in particular is never model-authored: the
+    narrator's output schema has no field for it, so a model cannot state a tier
+    even if it tries -- it can only write prose, which the escalation-fidelity
+    gate then checks against the tier we already hold.
+
+    ``system_notices`` is template-generated for analytes the model was not
+    allowed to see (invalid derived values). Keeping that text out of the
+    model's hands is the point: the one thing it must not narrate is the one
+    thing it never receives.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    panel_id: str
+    escalation: Escalation
+    blocks: tuple[NarrativeBlock, ...] = ()
+    summary: str
+    next_step: str
+    system_notices: tuple[str, ...] = ()
+    assessment_finding_ids: tuple[str, ...] = ()
+    unnarratable_finding_ids: tuple[str, ...] = ()
+    model_id: str
+    prompt_version: str
+    generated_at: datetime
+
+    @model_validator(mode="after")
+    def _blocks_map_onto_real_findings(self) -> "NarrativeReport":
+        known = set(self.assessment_finding_ids)
+        forbidden = set(self.unnarratable_finding_ids)
+        seen: set[str] = set()
+        for block in self.blocks:
+            for fid in block.explains_findings:
+                if fid not in known:
+                    raise ValueError(
+                        f"{self.panel_id}: narrative block {block.block_id} references "
+                        f"finding {fid!r}, which the assessment does not contain"
+                    )
+                if fid in forbidden:
+                    raise ValueError(
+                        f"{self.panel_id}: narrative block {block.block_id} narrates "
+                        f"finding {fid!r}, which is marked unnarratable"
+                    )
+                if fid in seen:
+                    raise ValueError(
+                        f"{self.panel_id}: finding {fid!r} has more than one narrative block"
+                    )
+                seen.add(fid)
+        return self
 
 
 class ReviewDecision(str, Enum):

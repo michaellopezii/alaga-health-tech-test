@@ -1,5 +1,5 @@
 # =============================================================================
-# Alaga rules engine — threshold configuration
+# Alaga rules engine: threshold configuration
 # =============================================================================
 #
 # Every number the rules engine uses lives in this file. rules.py contains no
