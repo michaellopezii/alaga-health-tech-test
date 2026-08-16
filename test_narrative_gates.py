@@ -14,6 +14,7 @@ import json
 from pydantic import ValidationError
 
 from eval_narrative import GATES, run_gates
+from judge import JudgeCategory, JudgeError, judge, make_judge_provider, payload_from_report
 from models import Escalation, NarrativeBlock, NarrativeReport, ResultStatus, UntrustedText
 from mutations import build_clean_baseline, build_mutants
 from narrator import (
@@ -30,13 +31,15 @@ from rules import assess_panel, load_thresholds
 
 CFG = load_thresholds()
 _MUTANTS = build_mutants()
+_GATE_MUTANTS = [m for m in _MUTANTS if m.expected_gate is not None]
+_JUDGE_MUTANTS = [m for m in _MUTANTS if m.expected_judge_category is not None]
 _CLEAN = build_clean_baseline()
 
 
 def _refuses(fn) -> None:
     try:
         fn()
-    except (ValidationError, ValueError, NarrationError):
+    except (ValidationError, ValueError, NarrationError, JudgeError):
         return
     raise AssertionError(f"expected a rejection, none raised: {fn}")
 
@@ -45,7 +48,7 @@ def _refuses(fn) -> None:
 
 
 def test_every_mutant_trips_its_gate() -> None:
-    for mutant in _MUTANTS:
+    for mutant in _GATE_MUTANTS:
         failures = run_gates(
             mutant.case.case_id, mutant.report, mutant.case.panel, mutant.assessment
         )
@@ -57,13 +60,13 @@ def test_every_mutant_trips_its_gate() -> None:
 
 
 def test_every_gate_has_at_least_one_mutant() -> None:
-    covered = {m.expected_gate for m in _MUTANTS}
+    covered = {m.expected_gate for m in _GATE_MUTANTS}
     missing = set(GATES) - covered
     assert not missing, f"gates with no mutant proving they fire: {sorted(missing)}"
 
 
 def test_failures_name_the_case_and_the_text() -> None:
-    for mutant in _MUTANTS:
+    for mutant in _GATE_MUTANTS:
         failures = run_gates(
             mutant.case.case_id, mutant.report, mutant.case.panel, mutant.assessment
         )
@@ -247,6 +250,134 @@ def test_fake_provider_needs_no_network_or_key() -> None:
 
 def test_unknown_provider_fails_loudly() -> None:
     _refuses(lambda: make_provider("gpt-whatever"))
+
+
+# --- the judge closes the gap the gates leave open --------------------------
+#
+# Each of these must PASS every deterministic gate (proving the gap is real)
+# and be CAUGHT by the judge (proving the second net closes it). A mutant that
+# fails a gate would prove nothing about the judge; a mutant the judge misses
+# means the documented gap is still open.
+
+
+def test_judge_mutants_pass_every_deterministic_gate() -> None:
+    for mutant in _JUDGE_MUTANTS:
+        failures = run_gates(
+            mutant.case.case_id, mutant.report, mutant.case.panel, mutant.assessment
+        )
+        assert not failures, (
+            f"{mutant.name}: a gate caught this, so it does not demonstrate the semantic "
+            f"gap — {[f.gate for f in failures]}. Rewrite the mutant or drop the gate claim."
+        )
+
+
+def test_judge_catches_what_the_gates_cannot() -> None:
+    provider = make_judge_provider("fake")
+    for mutant in _JUDGE_MUTANTS:
+        payload = payload_from_report(mutant.report, mutant.assessment, mutant.case.panel)
+        report = judge(payload, gate_failures=(), provider=provider)
+        caught = {c.value for c in report.failed_categories()}
+        assert mutant.expected_judge_category in caught, (
+            f"{mutant.name}: judge missed {mutant.expected_judge_category}, saw "
+            f"{sorted(caught) or 'nothing'} — the gap this mutant documents is still open"
+        )
+        assert not report.no_objections
+
+
+def test_judge_refuses_to_run_behind_failing_gates() -> None:
+    """Ordering is enforced by the signature, not by convention."""
+    mutant = _GATE_MUTANTS[0]
+    payload = payload_from_report(mutant.report, mutant.assessment, mutant.case.panel)
+    failures = run_gates(
+        mutant.case.case_id, mutant.report, mutant.case.panel, mutant.assessment
+    )
+    assert failures, "this mutant should be failing a gate"
+    _refuses(lambda: judge(payload, gate_failures=failures))
+
+
+def test_judge_passes_clean_narratives() -> None:
+    provider = make_judge_provider("fake")
+    for case, assessment, report in _CLEAN[:6]:
+        verdict = judge(
+            payload_from_report(report, assessment, case.panel),
+            gate_failures=(),
+            provider=provider,
+        )
+        assert verdict.no_objections, (
+            f"{case.case_id}: judge objected to a valid narrative — "
+            + "; ".join(f"{v.category.value}: {v.offending_span!r}" for v in verdict.failures)
+        )
+
+
+def test_judge_verdicts_must_quote_verbatim() -> None:
+    """A paraphrased span is evidence that cannot be checked."""
+    import json
+
+    class _Paraphraser:
+        model_id = "paraphraser"
+
+        def complete(self, system, user, schema):
+            return json.dumps({
+                "verdicts": [
+                    {"category": c.value, "verdict": "fail" if c is JudgeCategory.DIAGNOSIS else "pass",
+                     "offending_span": "a sentence that does not appear in the narrative"
+                     if c is JudgeCategory.DIAGNOSIS else "",
+                     "reason": ""}
+                    for c in JudgeCategory
+                ]
+            })
+
+    case, assessment, report = _CLEAN[0]
+    payload = payload_from_report(report, assessment, case.panel)
+    _refuses(lambda: judge(payload, gate_failures=(), provider=_Paraphraser(), max_attempts=2))
+
+
+def test_judge_requires_a_verdict_for_every_category() -> None:
+    import json
+
+    class _Partial:
+        model_id = "partial"
+
+        def complete(self, system, user, schema):
+            return json.dumps({"verdicts": [
+                {"category": "diagnosis", "verdict": "pass", "offending_span": "", "reason": ""}
+            ]})
+
+    case, assessment, report = _CLEAN[0]
+    payload = payload_from_report(report, assessment, case.panel)
+    _refuses(lambda: judge(payload, gate_failures=(), provider=_Partial(), max_attempts=2))
+
+
+def test_a_judge_pass_authorises_nothing() -> None:
+    """`no_objections` is not `approved`: there is no path from it to release."""
+    case, assessment, report = _CLEAN[0]
+    verdict = judge(
+        payload_from_report(report, assessment, case.panel),
+        gate_failures=(),
+        provider=make_judge_provider("fake"),
+    )
+    assert verdict.no_objections
+    assert not hasattr(verdict, "approved")
+    # The release gate is unmoved by any judge verdict.
+    from models import HealthProfileReport, ReportState
+
+    _refuses(
+        lambda: HealthProfileReport(
+            report_id="r", panel=case.panel, state=ReportState.RELEASED
+        )
+    )
+
+
+def test_stub_judge_is_self_identifying_in_stored_verdicts() -> None:
+    case, assessment, report = _CLEAN[0]
+    verdict = judge(
+        payload_from_report(report, assessment, case.panel),
+        gate_failures=(),
+        provider=make_judge_provider("fake"),
+    )
+    assert "stub" in verdict.model_id, (
+        "a persisted verdict must say on its face that it came from the keyword stub"
+    )
 
 
 if __name__ == "__main__":
